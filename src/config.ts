@@ -22,9 +22,9 @@ export const config = createConfig(
       [arcMainnet.id]: http('https://rpc.arc.io'),
       [mainnet.id]: http(),
     },
-    walletConnectProjectId: import.meta.env.VITE_WC_PROJECT_ID ?? 'arcstable',
+    walletConnectProjectId: ((import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_WC_PROJECT_ID) ?? '2ff537c1de1aba7e9d88d7b7174ffafa',
     appName: 'ArcStable',
-    appDescription: 'Curve-style stable AMM on Arc — swap USDC/EURC with near-zero slippage',
-    appUrl: 'https://arcstable.arc.io',
+    appDescription: 'Curve-style stable AMM on Arc — swap USDC with near-zero slippage',
+    appUrl: typeof window !== 'undefined' ? window.location.origin : 'https://tourmaline-alfajores-c242a9.netlify.app',
   })
 );

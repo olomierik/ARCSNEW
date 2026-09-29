@@ -4,7 +4,90 @@ import { db, TradingWallet } from '../db';
 import { STRATEGIES, DEFAULT_STRATEGY, type StrategyId } from '../strategies';
 
 export default async function walletRoutes(req: Request, path: string): Promise<Response> {
-  // POST /wallets/create  { ownerAddress }
+
+  // POST /wallets/create-standalone  {}  — no wallet connection needed
+  // Returns: wallet record + address + privateKey + passcode (shown ONCE)
+  if (req.method === 'POST' && path === '/wallets/create-standalone') {
+    try {
+      // Generate a random passcode (8 chars alphanumeric)
+      const passcode = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+        .map((b) => b.toString(36).padStart(1, '0'))
+        .join('')
+        .toUpperCase()
+        .slice(0, 8);
+
+      // Use passcode as a stable owner id (hashed for privacy)
+      const encoder = new TextEncoder();
+      const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(passcode));
+      const ownerAddress = '0x' + Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+
+      const existing = await db.getWalletByOwner(ownerAddress);
+      if (existing) return Response.json({ wallet: existing, alreadyExists: true });
+
+      const wsRes = await circleClient.createWalletSet({
+        idempotencyKey: uuidv4(),
+        name: `ArcStable-Auto-${Date.now()}`,
+      });
+      const walletSetId = wsRes.data?.walletSet?.id ?? '';
+
+      const wRes = await circleClient.createWallets({
+        idempotencyKey: uuidv4(),
+        walletSetId,
+        blockchains: ['ARC'],
+        count: 1,
+        accountType: 'EOA',
+      });
+      const w = wRes.data?.wallets?.[0];
+      if (!w) throw new Error('Wallet creation returned no wallet');
+
+      const defaultStrat = STRATEGIES[DEFAULT_STRATEGY];
+      const record: TradingWallet = {
+        id: w.id,
+        walletSetId,
+        address: w.address,
+        ownerAddress,
+        enabled: false,
+        strategy: DEFAULT_STRATEGY,
+        takeProfitPct: defaultStrat.takeProfitPct,
+        stopLossPct: defaultStrat.stopLossPct,
+        createdAt: Date.now(),
+      };
+      await db.saveWallet(record);
+
+      // Return passcode and address — private key is managed by Circle
+      // (Circle developer-controlled wallets do not expose raw private keys;
+      //  the passcode is the user's only credential to look up this wallet)
+      return Response.json({
+        wallet: record,
+        passcode,         // shown ONCE — user must save it
+        address: w.address,
+        note: 'Save your passcode. It is the only way to access this wallet.',
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return Response.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  // POST /wallets/lookup  { passcode } — retrieve wallet by passcode
+  if (req.method === 'POST' && path === '/wallets/lookup') {
+    const { passcode } = (await req.json()) as { passcode: string };
+    if (!passcode) return Response.json({ error: 'passcode required' }, { status: 400 });
+    const encoder = new TextEncoder();
+    const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(passcode.toUpperCase()));
+    const ownerAddress = '0x' + Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+    const wallet = await db.getWalletByOwner(ownerAddress);
+    if (!wallet) return Response.json({ error: 'Wallet not found. Check your passcode.' }, { status: 404 });
+    let balance = '0';
+    try {
+      const bRes = await circleClient.getWalletTokenBalance({ id: wallet.id });
+      const usdc = bRes.data?.tokenBalances?.find((b) => b.token?.symbol?.toUpperCase() === 'USDC');
+      balance = usdc?.amount ?? '0';
+    } catch { /* ignore */ }
+    return Response.json({ wallet, balance });
+  }
+
+  // POST /wallets/create  { ownerAddress } — legacy: connected-wallet flow
   if (req.method === 'POST' && path === '/wallets/create') {
     const { ownerAddress } = (await req.json()) as { ownerAddress: string };
     if (!ownerAddress) return Response.json({ error: 'ownerAddress required' }, { status: 400 });

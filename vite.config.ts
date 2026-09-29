@@ -9,7 +9,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
-    dedupe: ['react', 'react-dom'],
+    dedupe: ['react', 'react-dom', 'styled-components'],
   },
   optimizeDeps: {
     include: [
@@ -35,8 +35,14 @@ export default defineConfig({
     ],
   },
   server: {
+    host: '0.0.0.0',
+    port: 5173,
     allowedHosts: true,
     cors: true,
+    hmr: {
+      clientPort: 443,
+      protocol: 'wss',
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

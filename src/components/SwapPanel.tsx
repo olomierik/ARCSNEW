@@ -16,16 +16,16 @@ export default function SwapPanel() {
     : undefined;
 
   // Quote: USDC (index 0) → USDC (same pool, single token — swap is effectively no-op)
-  // The pool is USDC/EURC but since EURC is unavailable the swap tab is
+  // The pool is USDC-only. Swap is disabled until a second token is live.
   // repurposed as a USDC deposit-only notice. We keep the quote call wired
-  // so the contract infrastructure stays intact for when EURC is added.
+  
   const { data: quoteData } = useReadContract({
     address: ADDRESSES.POOL,
     abi: POOL_ABI,
     functionName: 'get_dy',
     args: amountInRaw ? [0n, 1n, amountInRaw] : undefined,
     chainId: arcMainnet.id,
-    query: { enabled: false }, // disabled until EURC is live
+    query: { enabled: false }, // disabled — pool is USDC-only
   });
   const amountOut = quoteData;
 
@@ -111,7 +111,7 @@ export default function SwapPanel() {
           className="rounded-xl px-4 py-3 text-sm text-pretty"
           style={{ background: 'rgba(172,198,233,0.08)', border: '1px solid rgba(172,198,233,0.2)', color: 'var(--muted)' }}
         >
-          Swaps are temporarily unavailable. EURC is not yet live on Arc Mainnet. Liquidity can still be added using USDC only.
+          Swaps are currently unavailable. The pool operates with USDC only. Add USDC liquidity to earn swap fees.
         </div>
 
         {/* USDC input (kept for approve flow) */}

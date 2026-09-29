@@ -70,7 +70,7 @@ export default function LiquidityPanel() {
   }
   function addLiquidity() {
     const u = usdcRaw ?? 0n;
-    // Pool slot 0 = USDC, slot 1 = EURC (0 until EURC is live)
+    // Pool slot 0 = USDC (slot 1 reserved, currently unused)
     writeContract({ address: ADDRESSES.POOL, abi: POOL_ABI, functionName: 'add_liquidity', args: [[u, 0n], 0n], chainId: arcMainnet.id });
   }
   function removeLiquidity() {
@@ -105,7 +105,7 @@ export default function LiquidityPanel() {
               className="rounded-xl px-4 py-3 text-xs text-pretty"
               style={{ background: 'rgba(172,198,233,0.08)', border: '1px solid rgba(172,198,233,0.2)', color: 'var(--muted)' }}
             >
-              Only USDC deposits are accepted while EURC is not yet live on Arc Mainnet.
+              Deposits are USDC only. Add USDC to earn your share of swap fees.
             </div>
 
             {/* USDC input */}
